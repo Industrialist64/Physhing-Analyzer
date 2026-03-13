@@ -163,7 +163,7 @@ public class PhyshingAnalyzer{
                         homoglyphValues.add(String.valueOf(ln.charAt(0)));
                     }
                 }
-                System.out.println("[+] Successfully setup homoglyph database (" + homoglyphKeys.size() +"entries).");
+                System.out.println("[+] Successfully setup homoglyph database (" + homoglyphImposters.size() +"entries).");
             }
             else{
                 System.out.println("[!] ERROR: Problem finding homoglyphs.txt: " + e.getMessage());
@@ -238,7 +238,7 @@ public class PhyshingAnalyzer{
         ServerityScore rslt = new SeverityScore(url, "URL");
 
         // Normalize url and add https:// if needed
-        if(url.contains("://"){
+        if(url.contains("://")){
             String nUrl = url.toLowerCase().trim();
         }
         else{
@@ -270,7 +270,7 @@ public class PhyshingAnalyzer{
         }
 
         //-----5. Address has a risky TLD----
-        for(int i = 0; i < riskyTlds.length(); i++){
+        for(int i = 0; i < riskyTlds.length; i++){
             if(domain.endsWith(tld[i])){
                 rslt.redFlags.add(new RedFlag("Uncommon/Potentially-Dangerous TLD", "MEDIUM", "This Top-Level domain is often abused by phishing websites", riskyTlds));
                 break;
@@ -278,7 +278,7 @@ public class PhyshingAnalyzer{
         }
 
         //-----6. Impersonating a Trusted Brand/ 'typosquatting'----
-        for(int i = 0; i < tlds.length(); i++){
+        for(int i = 0; i < tlds.length; i++){
             if(domain.endsWith(trustedBrands[i])){
                 String[] tokens = domain.split("\\.");
                 if(!(tokens.length >= 2 && tokens[tokens.length - 2].equals(trustedBrands))){
@@ -289,12 +289,62 @@ public class PhyshingAnalyzer{
         }
 
         //-----7. Unicode Spoof/ 'Homoglyphs'-----
-        
+        ArrayList<String> foundGlyphs = new ArrayList<>();
+        for(int i = 0; i < domain.length(); i++){
+            char letterInQuestion = domain.charAt(i)
+            for(int j = 0; j < homoglyphImposters.size(); j++){
+                if(letterInQuestion == homoglyphImposters.get(j).charAt(0)){
+                    foundGlyphs.add("Potential Homoglyph: '" + letterInQuestion + "' -> Normal ASCII Character: '" + homoglyphValues + "'");
+                }
+            }
+        }
+        if(!foundGlyphs.isEmpty()){
+            String foundGlyphsStr = foundGlyphs.get(0);
 
-        
+            for(int i = 1; i < foundGlyphs.size(); i++){
+                foundGlyphsStr = ", " + foundGlyphs.get(i);
+            }
+            rslt.redFlags.add(new RedFlag("Homoglyph", "MEDIUM", "Lookalike ASCII characters found: " + foundGlyphsStr, url))
+        }
 
+        //-----8. Contains A Common Fishing Keyword -----
+        for(int i = 0; i < phishingKeywords.length; i++){
+            if(nUrl.contains(phishingKeywords[i])){
+                rslt.redFlags.add(new RedFlag("Phishing Keyword", "Low", "Suspicious/ Urgent Word in URL: " + phishingKeywords[i], url))
+            }
+        }
 
+        //-----9. A lot of Subdomains -----
+        // (more than 3)
+        String[] tokens = domain.split("\\.");
+        if(tokens.length > 3){
+            rslt.redFlags.add(new RedFlag("Many Subdomains", "MEDIUM", "There Seems to be an excessive ammount of Subdomains [ "+ tokens.length + "]", url))
+        }
 
+        //-----10. Excessively Large URL -----
+        if(url.length > 80){
+            rslt.redFlags.add(new RedFlag("Large URL", "LOW", "The URL is suspiciously long (Possible Obfuscation)", url))
+        }
+
+        //-----11. No HTTPS -----
+        if(nURL.startsWith("http://")){
+            rslt.redFlags.add(new RedFlag("Insecure (HTTP)", "LOW", "The URL uses HTTP -> unencrypted transportation", "http://"));
+        }
+
+        //-----12. Suspicious number of digits in domain -----
+        int numCount = 0;
+        for(int i = 0; i < domain.length(); i++){
+            if(Character.isDigit(domain.charAt(i))){
+                numCount++;
+            }
+        }   
+        // 6 is max number of digits
+        if(numCount > 6){
+            rslt.redFlags.add(new RedFlag("Many Domain Digits", "LOW", "The domain has a suspicious number of digit: (" + numCount + ") -> potentually auto-generated", domain));
+        }
+
+        calculateScore(rslt);
+        return rslt;
     }
 
 
